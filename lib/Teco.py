@@ -1,4 +1,5 @@
 from lib.frvsr import *
+import tensorflow_addons as tfa
 
 VGG_MEAN = [123.68, 116.78, 103.94]
 
@@ -117,7 +118,7 @@ def TecoGAN(r_inputs, r_targets, FLAGS, GAN_Flag=True):
         input_frames = tf.reshape( Frame_t, (FLAGS.batch_size*(inputimages-1), FLAGS.crop_size, FLAGS.crop_size, output_channel) )
         
     # tf.contrib.image.dense_image_warp, only in tf1.8 or larger, no GPU support
-    s_input_warp = tf.contrib.image.dense_image_warp( 
+    s_input_warp = tfa.image.dense_image_warp( 
         tf.reshape( Frame_t_pre, (FLAGS.batch_size*(inputimages-1), FLAGS.crop_size, FLAGS.crop_size, output_channel) ),
         gen_flow_lr) # (FLAGS.batch_size*(inputimages-1), FLAGS.crop_size, FLAGS.crop_size, output_channel)
     
@@ -137,7 +138,7 @@ def TecoGAN(r_inputs, r_targets, FLAGS, GAN_Flag=True):
             # warp the previously generated frame
             cur_flow = gen_flow[:, frame_i, :,:,:]
             cur_flow.set_shape( (FLAGS.batch_size, FLAGS.crop_size*4, FLAGS.crop_size*4, 2) )
-            gen_pre_output_warp = tf.contrib.image.dense_image_warp(
+            gen_pre_output_warp = tfa.image.dense_image_warp(
                 gen_pre_output, cur_flow)
             gen_warppre.append(gen_pre_output_warp) # warp frame [0,n-1] to frame [1,n]
             gen_pre_output_warp = preprocessLR( deprocess(gen_pre_output_warp) )
@@ -221,7 +222,7 @@ def TecoGAN(r_inputs, r_targets, FLAGS, GAN_Flag=True):
         
         # Build the tempo discriminator for the real part
         with tf.name_scope('real_Tdiscriminator'):
-            real_warp0 = tf.contrib.image.dense_image_warp(t_targets, T_vel) 
+            real_warp0 = tfa.image.dense_image_warp(t_targets, T_vel) 
             # batch*t_size, h=FLAGS.crop_size*4, w=FLAGS.crop_size*4, 3
             with tf.device('/gpu:0'), tf.variable_scope('tdiscriminator', reuse=False):
                 real_warp = tf.reshape(real_warp0, (t_batch, 3, FLAGS.crop_size*4, FLAGS.crop_size*4, 3))#[tb,T=3,h,w,ch=3 for RGB]
@@ -251,7 +252,7 @@ def TecoGAN(r_inputs, r_targets, FLAGS, GAN_Flag=True):
                     
         # Build the tempo discriminator for the fake part
         with tf.name_scope('fake_Tdiscriminator'):
-            fake_warp0 = tf.contrib.image.dense_image_warp(t_gen_output, T_vel)
+            fake_warp0 = tfa.image.dense_image_warp(t_gen_output, T_vel)
             with tf.device('/gpu:0'), tf.variable_scope('tdiscriminator', reuse=True): # reuse weights
                 fake_warp = tf.reshape(fake_warp0, (t_batch, 3, FLAGS.crop_size*4, FLAGS.crop_size*4, 3))
                 fake_warp = tf.transpose(fake_warp, perm=[0, 2, 3, 4, 1])

@@ -11,14 +11,46 @@ import tensorflow as tf
 from tensorflow.python.util import deprecation
 deprecation._PRINT_DEPRECATION_WARNINGS = False
 import random as rn
+import tensorflow_addons as tfa
 
+tf.compat.v1.disable_eager_execution()
+tf.variable_scope = tf.compat.v1.variable_scope
+tf.assign = tf.compat.v1.assign
+tf.get_collection = tf.compat.v1.get_collection
+tf.GraphKeys = tf.compat.v1.GraphKeys
+tf.train.Saver = tf.compat.v1.train.Saver
+tf.global_variables_initializer = tf.compat.v1.global_variables_initializer
+tf.local_variables_initializer = tf.compat.v1.local_variables_initializer
+tf.ConfigProto = tf.compat.v1.ConfigProto
+tf.Session = tf.compat.v1.Session
+tf.placeholder = tf.compat.v1.placeholder
+tf.placeholder_with_default = tf.compat.v1.placeholder_with_default
+tf.train.slice_input_producer = tf.compat.v1.train.slice_input_producer
+tf.random_uniform = tf.random.uniform
+tf.read_file = tf.io.read_file
+tf.train.shuffle_batch = tf.compat.v1.train.shuffle_batch
+tf.train.get_or_create_global_step = tf.compat.v1.train.get_or_create_global_step
+tf.train.exponential_decay = tf.compat.v1.train.exponential_decay
+tf.image.resize_images = tf.compat.v1.image.resize
+tf.layers = tf.compat.v1.layers
+tf.add_to_collection = tf.compat.v1.add_to_collection
+tf.log = tf.math.log
+tf.train.AdamOptimizer = tf.compat.v1.train.AdamOptimizer
+tf.get_variable = tf.compat.v1.get_variable
+tf.assign_add = tf.compat.v1.assign_add
+tf.py_func = tf.compat.v1.py_func
+tf.summary.merge = tf.compat.v1.summary.merge
+tf.train.MonitoredTrainingSession = tf.compat.v1.train.MonitoredTrainingSession
+tf.stack = tf.compat.v1.stack
+# tf.contrib.image.dense_image_warp = tfa.image.dense_image_warp
 # fix all randomness, except for multi-treading or GPU process
 os.environ['PYTHONHASHSEED'] = '0'
 np.random.seed(42)
 rn.seed(12345)
-tf.set_random_seed(1234)
+tf.compat.v1.set_random_seed(1234)
 
-import tensorflow.contrib.slim as slim
+# import tensorflow.contrib.slim as slim
+import tf_slim as slim
 import sys, shutil, subprocess
 
 from lib.ops import *
@@ -26,8 +58,8 @@ from lib.dataloader import inference_data_loader, frvsr_gpu_data_loader
 from lib.frvsr import generator_F, fnet
 from lib.Teco import FRVSR, TecoGAN
 
+Flags = tf.compat.v1.app.flags
 
-Flags = tf.app.flags
 
 Flags.DEFINE_integer('rand_seed', 1 , 'random seed' )
 
@@ -110,7 +142,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]=FLAGS.cudaID
 my_seed = FLAGS.rand_seed
 rn.seed(my_seed)
 np.random.seed(my_seed)
-tf.set_random_seed(my_seed)
+tf.compat.v1.set_random_seed(my_seed)
 
 # Check the output_dir is given
 if FLAGS.output_dir is None:
@@ -198,7 +230,7 @@ if FLAGS.mode == 'inference':
     pre_gen = tf.Variable(tf.zeros(output_shape), trainable=False, name='pre_gen')
     pre_warp = tf.Variable(tf.zeros(output_shape), trainable=False, name='pre_warp')
     
-    transpose_pre = tf.space_to_depth(pre_warp, 4)
+    transpose_pre = tf.nn.space_to_depth(pre_warp, 4)
     inputs_all = tf.concat( (inputs_raw, transpose_pre), axis = -1)
     with tf.variable_scope('generator'):
         gen_output = generator_F(inputs_all, 3, reuse=False, FLAGS=FLAGS)
@@ -212,7 +244,7 @@ if FLAGS.mode == 'inference':
         gen_flow_lr = tf.pad(gen_flow_lr, paddings, "SYMMETRIC") 
         gen_flow = upscale_four(gen_flow_lr*4.0)
         gen_flow.set_shape( output_shape[:-1]+[2] )
-    pre_warp_hi = tf.contrib.image.dense_image_warp(pre_gen, gen_flow)
+    pre_warp_hi = tfa.image.dense_image_warp(pre_gen, gen_flow)
     before_ops = tf.assign(pre_warp, pre_warp_hi)
 
     print('Finish building the network')
@@ -294,14 +326,14 @@ elif FLAGS.mode == 'train':
         # 'map_loss, scale_loss, FrameA_loss, FrameA_loss,...'
         train_summary += [tf.summary.scalar(key, value)]
     train_summary += Net.image_summary
-    merged = tf.summary.merge(train_summary)
+    # merged = tf.summary.merge(train_summary)
     
     validat_summary = [] # val data statistics is not added to average
     uplen = len(Net.update_list)
     for key, value in zip(Net.update_list_name[:uplen], Net.update_list):
         # 'map_loss, scale_loss, FrameA_loss, FrameA_loss,...'
         validat_summary += [tf.summary.scalar("val_" + key, value)]
-    val_merged = tf.summary.merge(validat_summary)
+    # val_merged = tf.summary.merge(validat_summary)
 
     # Define the saver and weight initiallizer
     saver = tf.train.Saver(max_to_keep=50)
@@ -381,8 +413,8 @@ elif FLAGS.mode == 'train':
                 if (run_step % FLAGS.display_freq) == 0:
                     for key, value in zip(Net.update_list_name, Net.update_list_avg):
                         fetches[str(key)] = value
-                if (run_step % FLAGS.summary_freq) == 0:
-                    fetches["summary"] = merged
+                # if (run_step % FLAGS.summary_freq) == 0:
+                #     fetches["summary"] = merged
                     
                 results = sess.run(fetches)
                 if(step == 0):
@@ -394,7 +426,7 @@ elif FLAGS.mode == 'train':
                     val_fetches = {}
                     for name, value in zip(Net.update_list_name[:uplen], Net.update_list):
                         val_fetches['val_' + name] = value
-                    val_fetches['summary'] = val_merged
+                    # val_fetches['summary'] = val_merged
                     val_results = sess.run(val_fetches, feed_dict={useValidat: True})
                     train_writer.add_summary(val_results['summary'], run_step)
                     print('-----------Validation data scalars-----------')

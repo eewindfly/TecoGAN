@@ -19,7 +19,7 @@ def fnet(fnet_input, reuse=False):
             net = conv2(net, 3, output_channel, stride, use_bias=True, scope='conv_2')
             net = lrelu(net, 0.2)
             new_shape = tf.shape(net)[1:-1]*2
-            net = tf.image.resize_images(net, new_shape)
+            net = tf.compat.v1.image.resize(net, new_shape)
 
         return net
         
@@ -56,7 +56,7 @@ def generator_F(gen_inputs, gen_output_channels, reuse=False, FLAGS=None):
 
         return net
 
-    with tf.variable_scope('generator_unit', reuse=reuse):
+    with tf.compat.v1.variable_scope('generator_unit', reuse=reuse):
         # The input layer
         with tf.variable_scope('input_stage'):
             net = conv2(gen_inputs, 3, 64, 1, scope='conv')
